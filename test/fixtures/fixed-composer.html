@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fixed Composer</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        min-height: 200vh;
+      }
+
+      main {
+        padding: 24px;
+      }
+
+      .composer {
+        align-items: center;
+        background: rgba(20, 20, 24, 0.92);
+        bottom: 0;
+        color: #fff;
+        display: flex;
+        gap: 12px;
+        left: 0;
+        padding: 12px 16px;
+        position: fixed;
+        right: 0;
+      }
+
+      .composer input {
+        flex: 1;
+        font: inherit;
+        padding: 10px 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Scroll a little, then focus the composer.</p>
+    </main>
+    <div class="composer">
+      <input id="composer-input" placeholder="Reply" />
+      <button type="button">Send</button>
+    </div>
+  </body>
+</html>

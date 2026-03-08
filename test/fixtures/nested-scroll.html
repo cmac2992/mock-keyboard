@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nested Scroll</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 24px;
+      }
+
+      .shell {
+        border: 1px solid #ccc;
+        height: 360px;
+        overflow: auto;
+      }
+
+      .inner {
+        display: grid;
+        gap: 12px;
+        min-height: 860px;
+        padding: 16px;
+      }
+
+      input {
+        font: inherit;
+        margin-top: 520px;
+        padding: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="inner">
+        <input id="nested-input" placeholder="Nested field" />
+      </div>
+    </div>
+  </body>
+</html>

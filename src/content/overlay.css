@@ -1,0 +1,125 @@
+:host {
+  all: initial;
+}
+
+.mk-root {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 2147483647;
+}
+
+.mk-safe-area {
+  background: linear-gradient(180deg, rgba(255, 111, 26, 0.14), rgba(255, 111, 26, 0.02));
+  border-top: 1px dashed rgba(255, 111, 26, 0.4);
+  opacity: 0;
+  position: absolute;
+  transition: opacity 220ms ease;
+}
+
+.mk-safe-area[data-visible='true'] {
+  opacity: 1;
+}
+
+.mk-keyboard {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(231, 236, 244, 0.96)),
+    linear-gradient(180deg, #eff3f7 0%, #cfd6df 100%);
+  border-radius: 24px 24px 0 0;
+  box-shadow:
+    0 -18px 60px rgba(30, 41, 59, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-sizing: border-box;
+  opacity: 0;
+  overflow: hidden;
+  padding: 10px 12px 16px;
+  position: absolute;
+  transform: translate3d(0, 24px, 0);
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.mk-keyboard[data-visible='true'] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.mk-topbar {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.mk-handle {
+  background: rgba(89, 105, 124, 0.28);
+  border-radius: 999px;
+  height: 4px;
+  width: 64px;
+}
+
+.mk-rows {
+  display: grid;
+  gap: 7px;
+}
+
+.mk-row {
+  display: grid;
+  gap: 6px;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+}
+
+.mk-row--offset {
+  padding-inline: 18px;
+}
+
+.mk-key {
+  align-items: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(243, 247, 250, 0.92));
+  border-radius: 10px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7),
+    0 4px 10px rgba(15, 23, 42, 0.08);
+  color: #253244;
+  display: flex;
+  font-family: "SF Pro Rounded", "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  justify-content: center;
+  min-height: 34px;
+}
+
+.mk-key--wide {
+  grid-column: span 2;
+}
+
+.mk-key--accent {
+  background: linear-gradient(180deg, rgba(215, 222, 232, 0.96), rgba(189, 198, 211, 0.96));
+}
+
+.mk-badge {
+  background: rgba(16, 33, 57, 0.9);
+  border-radius: 12px;
+  color: #fff;
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 200px;
+  opacity: 0;
+  padding: 8px 10px;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  transform: translate3d(0, -8px, 0);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  white-space: pre-line;
+}
+
+.mk-badge[data-visible='true'] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}

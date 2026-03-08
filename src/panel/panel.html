@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mock Keyboard</title>
+    <link rel="stylesheet" href="./panel.css" />
+  </head>
+  <body>
+    <div class="toolbar" role="toolbar" aria-label="Mock Keyboard controls">
+      <div class="toolbar-group">
+        <span class="toolbar-title">Mock Keyboard</span>
+      </div>
+      <div class="toolbar-group toolbar-group--end">
+        <label class="checkbox-item checkbox-item--toolbar">
+          <input id="enabled" type="checkbox" />
+          <span>Enabled</span>
+        </label>
+      </div>
+    </div>
+
+    <main class="panel" aria-label="Mock Keyboard panel">
+      <section aria-labelledby="controls-heading">
+        <h2 id="controls-heading" class="section-header">Controls</h2>
+
+        <div class="row">
+          <label class="row-label" for="visibilityMode">Visibility</label>
+          <select id="visibilityMode"></select>
+        </div>
+
+        <div class="row">
+          <label class="row-label" for="preset">Preset</label>
+          <select id="preset"></select>
+        </div>
+
+        <div class="row">
+          <span class="row-label">Debug</span>
+          <label class="checkbox-item">
+            <input id="debug" type="checkbox" />
+            <span>Debug overlays</span>
+          </label>
+        </div>
+      </section>
+
+      <section aria-labelledby="status-heading">
+        <h2 id="status-heading" class="section-header">Status</h2>
+
+        <div class="row">
+          <span class="row-label">State</span>
+          <strong id="status" class="row-value">Idle</strong>
+        </div>
+
+        <div class="row">
+          <span class="row-label">Target</span>
+          <strong id="activeSelector" class="row-value row-value--code">None</strong>
+        </div>
+
+        <div class="row">
+          <span class="row-label">Height</span>
+          <strong id="heightPx" class="row-value">0px</strong>
+        </div>
+
+        <div class="row">
+          <span class="row-label">Shifted</span>
+          <strong id="shifted" class="row-value">0</strong>
+        </div>
+      </section>
+
+      <section aria-labelledby="advanced-debug-heading">
+        <details id="advancedDebug" class="details-section">
+          <summary id="advanced-debug-heading" class="details-summary">Advanced Debugging</summary>
+
+          <div class="row">
+            <span class="row-label">Behavior</span>
+            <label class="checkbox-item">
+              <input id="enableLayoutFallbacks" type="checkbox" />
+              <span>Enable layout fallbacks</span>
+            </label>
+          </div>
+
+          <div class="row">
+            <span class="row-label">Bridge</span>
+            <strong id="debugBridge" class="row-value">Unknown</strong>
+          </div>
+
+          <div class="row">
+            <span class="row-label">Last Event</span>
+            <strong id="debugEvent" class="row-value row-value--code">None</strong>
+          </div>
+
+          <div class="row">
+            <span class="row-label">Viewport</span>
+            <strong id="debugViewport" class="row-value row-value--code">Unknown</strong>
+          </div>
+
+          <div class="row">
+            <span class="row-label">Shim</span>
+            <strong id="debugShim" class="row-value row-value--code">Unknown</strong>
+          </div>
+
+          <div class="row">
+            <span class="row-label">Fallbacks</span>
+            <strong id="debugFallback" class="row-value row-value--code">Unknown</strong>
+          </div>
+
+          <div class="debug-actions">
+            <button id="debugRefresh" type="button">Refresh</button>
+          </div>
+
+          <pre id="debugSnapshot" class="debug-pre">Open this section to inspect viewport shim state.</pre>
+        </details>
+      </section>
+    </main>
+
+    <p id="notice" class="notice" hidden></p>
+    <script type="module" src="./panel.ts"></script>
+  </body>
+</html>
