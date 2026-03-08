@@ -240,6 +240,9 @@ async function syncStateToTab(tabId: number, state: KeyboardState): Promise<void
   await chrome.tabs.sendMessage(tabId, message);
 }
 
+// Debug polling should talk to an already-injected controller first. Reinjecting on
+// every poll would recreate listeners and is exactly the kind of feedback loop the
+// panel is supposed to help diagnose.
 async function getDebugSnapshot(tabId: number): Promise<KeyboardDebugSnapshot | null> {
   const directSnapshot = await requestDebugSnapshotFromTab(tabId);
   if (directSnapshot) {

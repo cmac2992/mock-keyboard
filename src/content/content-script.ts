@@ -1,4 +1,7 @@
 (() => {
+// This file is emitted as a classic standalone script because Chrome injects it
+// directly into the tab. That is why the shared extension types are mirrored here
+// instead of imported as ES modules.
 type KeyboardPreset = 'android-compact' | 'android-standard' | 'android-tall';
 type VisibilityMode = 'auto' | 'force-open' | 'force-closed';
 type KeyboardSource = 'auto-focus' | 'manual' | 'forced-closed' | 'disabled';
@@ -357,6 +360,11 @@ const OVERLAY_CSS = `
   .mk-badge[data-visible="true"] { opacity: 1; transform: translate3d(0, 0, 0); }
 `;
 
+// The controller owns the entire injected-tab lifecycle:
+// 1. observe focus / viewport changes
+// 2. publish the simulated keyboard state
+// 3. give the page a chance to react through the viewport shim
+// 4. apply layout fallbacks only if the page still needs help
 class MockKeyboardController {
   private state: KeyboardState = { ...DEFAULT_KEYBOARD_STATE };
   private activeEditable: HTMLElement | null = null;
@@ -431,12 +439,19 @@ class MockKeyboardController {
     }
 
     this.ensureOverlay();
+    this.syncObserverMode();
+    this.recompute(this.sourceForCurrentMode());
+  }
+
+  // Native-viewport mode avoids the expensive fallback heuristics entirely, so it
+  // also turns off the DOM observer that feeds those heuristics.
+  private syncObserverMode(): void {
     if (this.state.preferNativeViewport) {
       this.disconnectCandidateObserver();
-    } else {
-      this.ensureCandidateObserver();
+      return;
     }
-    this.recompute(this.sourceForCurrentMode());
+
+    this.ensureCandidateObserver();
   }
 
   private bindGlobalListeners(): void {
@@ -528,6 +543,13 @@ class MockKeyboardController {
     this.render(previous, source);
   }
 
+  private shouldUseFallbackHeuristics(): boolean {
+    return this.state.enabled && this.state.visible && !this.state.preferNativeViewport;
+  }
+
+  // Render is intentionally ordered so the page sees viewport changes before the
+  // extension starts "helping" with DOM fallbacks. That keeps viewport-aware apps
+  // from fighting the simulator.
   private render(previous: KeyboardState, source: KeyboardSource): void {
     if (this.destroyed) {
       return;
@@ -543,7 +565,7 @@ class MockKeyboardController {
     this.applyRootHooks();
     this.lastAutoScrollApplied = false;
 
-    if (this.state.enabled && this.state.visible && !this.state.preferNativeViewport) {
+    if (this.shouldUseFallbackHeuristics()) {
       this.restoreGlobalCompensation();
       this.restoreShiftedElements();
     } else {
@@ -556,7 +578,7 @@ class MockKeyboardController {
       this.dispatchChange(source);
     }
 
-    if (this.state.enabled && this.state.visible && !this.state.preferNativeViewport) {
+    if (this.shouldUseFallbackHeuristics()) {
       this.scheduleFallbackPass();
     }
 
@@ -695,6 +717,7 @@ class MockKeyboardController {
       return;
     }
 
+    // Wait two frames so page code and layout observers can settle first.
     const firstFrame = window.requestAnimationFrame(() => {
       this.fallbackRafIds = this.fallbackRafIds.filter((id) => id !== firstFrame);
       const secondFrame = window.requestAnimationFrame(() => {
@@ -740,6 +763,9 @@ class MockKeyboardController {
     this.sendRuntimeState();
   }
 
+  // Padding is the most intrusive fallback because it changes document layout, so
+  // we only use it when a normal-flow focused field is still obscured and there is
+  // no local scroll container that could solve the problem instead.
   private shouldApplyGlobalCompensation(): boolean {
     if (!this.state.visible || !this.activeEditable || hasViewportAnchoredAncestor(this.activeEditable)) {
       return false;
@@ -867,6 +893,7 @@ class MockKeyboardController {
     }
 
     const viewport = getViewportMetrics();
+    const fallbackDebug = this.buildFallbackDebugSnapshot();
     this.clearDebugMarks();
     if (this.activeEditable) {
       this.activeEditable.dataset.mockKeyboardDebugFocused = 'true';
@@ -885,6 +912,9 @@ class MockKeyboardController {
       `native: ${this.state.preferNativeViewport}`,
       `shifted: ${this.state.shiftedElementCount}`,
       `offset: ${computeKeyboardOffsetFormulaPx()}px`,
+      `fallback: ${fallbackDebug.bodyPaddingApplied ? 'padding ' : ''}${
+        fallbackDebug.shiftedElementsApplied ? 'shift ' : ''
+      }${fallbackDebug.autoScrollApplied ? 'scroll' : 'idle'}`.trim(),
       `vv: ${viewport.height.toFixed(0)}h / ${viewport.width.toFixed(0)}w`,
       `ih: ${window.innerHeight}px`,
       `src: ${this.state.visibilityMode}`
@@ -972,6 +1002,7 @@ class MockKeyboardController {
 
   private getDebugSnapshot(): KeyboardDebugSnapshot {
     const contentViewport = getViewportMetrics();
+    const fallback = this.buildFallbackDebugSnapshot();
 
     return {
       bridgeInjected:
@@ -990,19 +1021,25 @@ class MockKeyboardController {
       contentInnerHeight: window.innerHeight,
       contentInnerWidth: window.innerWidth,
       keyboardOffsetFormulaPx: computeKeyboardOffsetFormulaPx(),
-      fallback: {
-        scheduled: this.fallbackRafIds.length > 0,
-        bodyPaddingApplied: this.lastBodyPaddingApplied,
-        shiftedElementsApplied: this.shiftedElements.size > 0,
-        autoScrollApplied: this.lastAutoScrollApplied,
-        focusedOverlapPx:
-          this.activeEditable && this.state.visible
-            ? getFocusedElementOverlap(this.activeEditable, this.state.heightPx)
-            : 0,
-        focusedAnchored: hasViewportAnchoredAncestor(this.activeEditable)
-      },
+      fallback,
       lastChange: this.lastDispatchedDetail,
       page: readPageDebugSnapshot()
+    };
+  }
+
+  private buildFallbackDebugSnapshot(): KeyboardDebugSnapshot['fallback'] {
+    const focusedOverlapPx =
+      this.activeEditable && this.state.visible
+        ? getFocusedElementOverlap(this.activeEditable, this.state.heightPx)
+        : 0;
+
+    return {
+      scheduled: this.fallbackRafIds.length > 0,
+      bodyPaddingApplied: this.lastBodyPaddingApplied,
+      shiftedElementsApplied: this.shiftedElements.size > 0,
+      autoScrollApplied: this.lastAutoScrollApplied,
+      focusedOverlapPx,
+      focusedAnchored: hasViewportAnchoredAncestor(this.activeEditable)
     };
   }
 
@@ -1311,6 +1348,7 @@ function getFocusedElementOverlap(element: HTMLElement, keyboardHeight: number):
   return Math.max(0, rect.bottom - safeBottom);
 }
 
+// This matches the formula many mobile UIs use to estimate the visible keyboard inset.
 function computeKeyboardOffsetFormulaPx(): number {
   return Math.max(
     0,
@@ -1322,6 +1360,8 @@ function computeKeyboardOffsetFormulaPx(): number {
   );
 }
 
+// Fixed and sticky containers generally manage their own relationship to the
+// keyboard, so the extension should avoid scrolling descendants inside them.
 function hasViewportAnchoredAncestor(element: HTMLElement | null): boolean {
   let current = element;
   while (current) {

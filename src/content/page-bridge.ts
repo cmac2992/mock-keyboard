@@ -1,4 +1,7 @@
 (() => {
+  // The page bridge runs in the page's own JS world so app code can observe the
+  // mocked viewport values directly. Content scripts alone cannot do that because
+  // they live in an isolated execution context.
   interface MockKeyboardChangeDetail {
     visible: boolean;
     heightPx: number;
@@ -145,6 +148,8 @@
   }
 
   function patchWindowMetrics(state: MockViewportShimState): void {
+    // Keep innerHeight stable. Many mobile layouts treat it as the larger layout
+    // viewport while visualViewport.height reflects the keyboard-covered area.
     const patchedInnerHeight = patchGetter(window, 'innerHeight', () =>
       Math.round(state.baseInnerHeight)
     );

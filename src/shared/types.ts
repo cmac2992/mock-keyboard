@@ -1,6 +1,7 @@
 export type KeyboardPreset = 'android-compact' | 'android-standard' | 'android-tall';
 export type VisibilityMode = 'auto' | 'force-open' | 'force-closed';
 
+// This is the durable per-tab model shared by the panel, background worker, and page logic.
 export interface KeyboardState {
   enabled: boolean;
   visibilityMode: VisibilityMode;
@@ -61,6 +62,7 @@ export interface KeyboardViewportMetrics {
   offsetLeft: number;
 }
 
+// Page-side metrics come from the bridge script that runs in the same JS world as the app.
 export interface PageDebugSnapshot {
   eventCount: number;
   lastEvent: MockKeyboardChangeDetail;
@@ -87,6 +89,7 @@ export interface PageDebugSnapshot {
   };
 }
 
+// Panel-side debugging combines the extension controller state with page-observed values.
 export interface KeyboardDebugSnapshot {
   bridgeInjected: boolean;
   bridgeReady: boolean;

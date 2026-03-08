@@ -63,6 +63,8 @@
             patchedHeight || patchedWidth || patchedOffsetTop || patchedOffsetLeft || patchedPageTop || patchedPageLeft;
     }
     function patchWindowMetrics(state) {
+        // Keep innerHeight stable. Many mobile layouts treat it as the larger layout
+        // viewport while visualViewport.height reflects the keyboard-covered area.
         const patchedInnerHeight = patchGetter(window, 'innerHeight', () => Math.round(state.baseInnerHeight));
         const patchedInnerWidth = patchGetter(window, 'innerWidth', () => Math.round(state.baseInnerWidth));
         state.windowPatched = patchedInnerHeight || patchedInnerWidth;

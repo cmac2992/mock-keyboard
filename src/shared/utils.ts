@@ -1,13 +1,12 @@
 import { ANCHOR_ATTRIBUTE, IGNORE_ATTRIBUTE, NON_TEXT_INPUT_TYPES } from './constants';
 import type {
   KeyboardPreset,
-  KeyboardState,
   KeyboardViewportMetrics,
-  MockKeyboardChangeDetail,
   OriginalStyleSnapshot,
   VisibilityMode
 } from './types';
 
+// Keyboard height is a viewport-relative estimate, not a fixed device constant.
 export function computeKeyboardHeight(
   preset: KeyboardPreset,
   viewportHeight: number
@@ -107,18 +106,6 @@ export function mergeTransform(existingTransform: string, keyboardHeight: number
   return trimmed.length > 0 && trimmed !== 'none' ? `${trimmed} ${shift}` : shift;
 }
 
-export function buildChangeDetail(
-  state: KeyboardState,
-  source: MockKeyboardChangeDetail['source']
-): MockKeyboardChangeDetail {
-  return {
-    visible: state.visible,
-    heightPx: state.heightPx,
-    preset: state.preset,
-    source
-  };
-}
-
 export function makeStyleSnapshot(element: HTMLElement): OriginalStyleSnapshot {
   return {
     transform: element.style.transform,
@@ -127,6 +114,7 @@ export function makeStyleSnapshot(element: HTMLElement): OriginalStyleSnapshot {
   };
 }
 
+// Scroll fallback should prefer the nearest scroll container before moving the page.
 export function isScrollable(element: HTMLElement): boolean {
   const styles = window.getComputedStyle(element);
   const overflowY = styles.overflowY;
@@ -175,6 +163,7 @@ export function isBottomAnchoredCandidate(
   return Math.abs(viewportHeight - rect.bottom) <= 24;
 }
 
+// Extension injection only works on regular web documents.
 export function supportsRuntimeInjection(url: string | undefined): boolean {
   if (!url) {
     return false;

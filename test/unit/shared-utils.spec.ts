@@ -1,5 +1,4 @@
 import {
-  buildChangeDetail,
   computeKeyboardHeight,
   deriveVisibility,
   describeElement,
@@ -7,7 +6,6 @@ import {
   isEditableElement,
   mergeTransform
 } from '../../src/shared/utils';
-import type { KeyboardState } from '../../src/shared/types';
 
 describe('shared utils', () => {
   beforeEach(() => {
@@ -76,27 +74,5 @@ describe('shared utils', () => {
   it('merges transforms with keyboard offset', () => {
     expect(mergeTransform('', 320)).toBe('translate3d(0, -320px, 0)');
     expect(mergeTransform('scale(1)', 280)).toBe('scale(1) translate3d(0, -280px, 0)');
-  });
-
-  it('builds change detail payloads', () => {
-    const state: KeyboardState = {
-      enabled: true,
-      visibilityMode: 'auto',
-      preset: 'android-standard',
-      preferNativeViewport: false,
-      visible: true,
-      heightPx: 320,
-      debug: false,
-      activeSelector: '#field',
-      shiftedElementCount: 2,
-      unsupportedReason: null
-    };
-
-    expect(buildChangeDetail(state, 'auto-focus')).toEqual({
-      visible: true,
-      heightPx: 320,
-      preset: 'android-standard',
-      source: 'auto-focus'
-    });
   });
 });
