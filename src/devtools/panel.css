@@ -5,7 +5,7 @@
 :root {
   color-scheme: light dark;
 
-  /* Prefer DevTools tokens when present, then system colors, then stable fallbacks. */
+  /* Prefer DevTools tokens when present, then system colors, then stable dark-mode defaults. */
   --dt-surface: var(--sys-color-cdt-base-container, #202124);
   --dt-surface-alt: var(--sys-color-surface2, #292a2d);
   --dt-surface-hover: var(--sys-color-state-hover-on-subtle, #2f3136);
@@ -255,7 +255,7 @@ body {
   outline-offset: 1px;
 }
 
-.debug-pre {
+.debug-snapshot {
   background: var(--dt-surface);
   color: var(--dt-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -265,6 +265,42 @@ body {
   max-height: 260px;
   overflow: auto;
   padding: 8px 10px 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
+}
+
+.debug-section + .debug-section {
+  border-top: 1px solid var(--dt-border);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.debug-section-title {
+  color: var(--dt-text-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.debug-grid {
+  column-gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+  margin: 0;
+  row-gap: 4px;
+}
+
+.debug-term {
+  color: var(--dt-text-subtle);
+  margin: 0;
+}
+
+.debug-value {
+  color: var(--dt-text);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.debug-empty {
+  color: var(--dt-text-subtle);
+  margin: 0;
 }

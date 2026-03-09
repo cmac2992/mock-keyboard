@@ -6,6 +6,8 @@
     <title>Mock Keyboard DevTools</title>
   </head>
   <body>
-    <script type="module" src="./devtools.ts"></script>
+    <script type="module">
+      chrome.devtools.panels.create('Mock Keyboard', '', 'src/devtools/panel.html');
+    </script>
   </body>
 </html>

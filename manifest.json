@@ -12,7 +12,7 @@
   "devtools_page": "src/devtools/devtools.html",
   "web_accessible_resources": [
     {
-      "resources": ["page-bridge.js"],
+      "resources": ["overlay.css", "page-bridge.js"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ]

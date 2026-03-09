@@ -115,7 +115,6 @@ async function handleMessage(
         visible: message.state.visible,
         heightPx: message.state.heightPx,
         activeSelector: message.state.activeSelector,
-        shiftedElementCount: message.state.shiftedElementCount,
         unsupportedReason: message.state.unsupportedReason
       }
     };
@@ -158,8 +157,7 @@ async function handleMessage(
             ...nextState.keyboard,
             visible: false,
             heightPx: 0,
-            activeSelector: null,
-            shiftedElementCount: 0
+            activeSelector: null
           }
         };
       }
@@ -180,16 +178,6 @@ async function handleMessage(
         keyboard: {
           ...current.keyboard,
           preset: message.preset
-        }
-      };
-      await persistDefaults(nextState.keyboard);
-      break;
-    case 'SET_PREFER_NATIVE_VIEWPORT':
-      nextState = {
-        tabId: current.tabId,
-        keyboard: {
-          ...current.keyboard,
-          preferNativeViewport: message.preferNativeViewport
         }
       };
       await persistDefaults(nextState.keyboard);
@@ -295,8 +283,6 @@ async function getOrCreateState(tabId: number): Promise<TabState> {
       ...DEFAULT_KEYBOARD_STATE,
       preset: defaults.preset ?? DEFAULT_KEYBOARD_STATE.preset,
       visibilityMode: defaults.visibilityMode ?? DEFAULT_KEYBOARD_STATE.visibilityMode,
-      preferNativeViewport:
-        defaults.preferNativeViewport ?? DEFAULT_KEYBOARD_STATE.preferNativeViewport,
       debug: defaults.debug ?? DEFAULT_KEYBOARD_STATE.debug
     }
   };
@@ -317,7 +303,6 @@ async function persistDefaults(state: KeyboardState): Promise<void> {
     [DEFAULTS_STORAGE_KEY]: {
       preset: state.preset,
       visibilityMode: state.visibilityMode,
-      preferNativeViewport: state.preferNativeViewport,
       debug: state.debug
     }
   });

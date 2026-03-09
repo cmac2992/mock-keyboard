@@ -107,65 +107,31 @@ test('enables the simulator and reacts to input focus', async () => {
     .toBeGreaterThan(0);
 });
 
-test('shifts fixed bottom composers above the keyboard', async () => {
-  const page = await openFixture('fixed-composer.html');
-  const panel = await openPanelFor(page.url());
-
-  await enableSimulator(panel);
-  await panel.locator('#advancedDebug').click();
-  await panel.getByLabel('Enable layout fallbacks').check();
-  const composer = page.locator('.composer');
-  const before = await composer.evaluate((element) => getComputedStyle(element).transform);
-
-  await page.locator('#composer-input').focus();
-
-  await expect.poll(async () => {
-    return composer.evaluate((element) => getComputedStyle(element).transform);
-  }).not.toBe(before);
-
-  await expect
-    .poll(async () => page.evaluate(() => document.body.style.paddingBottom || ''))
-    .toBe('');
-});
-
-test('uses native viewport behavior by default', async () => {
-  const page = await openFixture('fixed-composer.html');
-  const panel = await openPanelFor(page.url());
-
-  await enableSimulator(panel);
-
-  const composer = page.locator('.composer');
-  await page.locator('#composer-input').focus();
-
-  await expect(page.locator('#__mock-keyboard-host')).toBeVisible();
-  await expect
-    .poll(async () => composer.evaluate((element) => getComputedStyle(element).transform))
-    .toBe('none');
-  await expect
-    .poll(async () => page.evaluate(() => document.body.style.paddingBottom || ''))
-    .toBe('');
-});
-
-test('respects force-open and survives page reloads', async () => {
+test('disables cleanly and can be re-enabled', async () => {
   const page = await openFixture('basic-form.html');
   const panel = await openPanelFor(page.url());
 
   await enableSimulator(panel);
-  await panel.locator('#visibilityMode').selectOption('force-open');
+  await page.locator('#field-a').focus();
 
-  await expect.poll(async () => {
-    return page.evaluate(() =>
-      document.documentElement.getAttribute('data-mock-keyboard')
-    );
-  }).toBe('open');
+  await expect(page.locator('#__mock-keyboard-host')).toBeVisible();
+  await panel.getByLabel('Enabled').uncheck();
 
-  await page.reload();
+  await expect(page.locator('#__mock-keyboard-host')).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => document.documentElement.getAttribute('data-mock-keyboard'))
+    )
+    .toBe('closed');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => document.documentElement.hasAttribute('data-mock-keyboard-bridge'))
+    )
+    .toBe(false);
 
-  await expect.poll(async () => {
-    return page.evaluate(() =>
-      document.documentElement.getAttribute('data-mock-keyboard')
-    );
-  }).toBe('open');
+  await enableSimulator(panel);
+  await page.locator('#field-a').focus();
+  await expect(page.locator('#__mock-keyboard-host')).toBeVisible();
 });
 
 async function openFixture(fileName: string): Promise<Page> {
@@ -185,7 +151,7 @@ async function openPanelFor(targetUrl: string): Promise<Page> {
   }
 
   const panel = await context.newPage();
-  await panel.goto(`chrome-extension://${extensionId}/src/panel/panel.html?tabId=${tabId}`);
+  await panel.goto(`chrome-extension://${extensionId}/src/devtools/panel.html?tabId=${tabId}`);
   return panel;
 }
 

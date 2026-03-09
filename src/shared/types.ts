@@ -6,12 +6,10 @@ export interface KeyboardState {
   enabled: boolean;
   visibilityMode: VisibilityMode;
   preset: KeyboardPreset;
-  preferNativeViewport: boolean;
   visible: boolean;
   heightPx: number;
   debug: boolean;
   activeSelector: string | null;
-  shiftedElementCount: number;
   unsupportedReason: string | null;
 }
 
@@ -25,7 +23,6 @@ export type PanelToBackgroundMessage =
   | { type: 'SET_ENABLED'; tabId: number; enabled: boolean }
   | { type: 'SET_VISIBILITY_MODE'; tabId: number; visibilityMode: VisibilityMode }
   | { type: 'SET_PRESET'; tabId: number; preset: KeyboardPreset }
-  | { type: 'SET_PREFER_NATIVE_VIEWPORT'; tabId: number; preferNativeViewport: boolean }
   | { type: 'SET_DEBUG'; tabId: number; debug: boolean }
   | { type: 'GET_DEBUG_SNAPSHOT'; tabId: number };
 
@@ -94,31 +91,15 @@ export interface KeyboardDebugSnapshot {
   bridgeInjected: boolean;
   bridgeReady: boolean;
   pendingBridgeEvent: boolean;
-  preferNativeViewport: boolean;
   visible: boolean;
   heightPx: number;
   preset: KeyboardPreset;
   visibilityMode: VisibilityMode;
   activeSelector: string | null;
-  shiftedElementCount: number;
   contentViewport: KeyboardViewportMetrics;
   contentInnerHeight: number;
   contentInnerWidth: number;
   keyboardOffsetFormulaPx: number;
-  fallback: {
-    scheduled: boolean;
-    bodyPaddingApplied: boolean;
-    shiftedElementsApplied: boolean;
-    autoScrollApplied: boolean;
-    focusedOverlapPx: number;
-    focusedAnchored: boolean;
-  };
   lastChange: MockKeyboardChangeDetail | null;
   page: PageDebugSnapshot | null;
-}
-
-export interface OriginalStyleSnapshot {
-  transform: string;
-  transition: string;
-  bottom: string;
 }

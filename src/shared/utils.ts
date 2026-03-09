@@ -1,10 +1,5 @@
-import { ANCHOR_ATTRIBUTE, IGNORE_ATTRIBUTE, NON_TEXT_INPUT_TYPES } from './constants';
-import type {
-  KeyboardPreset,
-  KeyboardViewportMetrics,
-  OriginalStyleSnapshot,
-  VisibilityMode
-} from './types';
+import { NON_TEXT_INPUT_TYPES } from './constants';
+import type { KeyboardPreset, KeyboardViewportMetrics, VisibilityMode } from './types';
 
 // Keyboard height is a viewport-relative estimate, not a fixed device constant.
 export function computeKeyboardHeight(
@@ -41,6 +36,18 @@ export function getViewportMetrics(win: Window): KeyboardViewportMetrics {
     offsetTop: viewport.offsetTop,
     offsetLeft: viewport.offsetLeft
   };
+}
+
+export function computeKeyboardOffsetFormulaPx(win: Window): number {
+  const visualViewport = win.visualViewport;
+  return Math.max(
+    0,
+    Math.round(
+      win.innerHeight -
+        (visualViewport?.height ?? win.innerHeight) -
+        (visualViewport?.offsetTop ?? 0)
+    )
+  );
 }
 
 export function isEditableElement(node: Element | null): node is HTMLElement {
@@ -98,69 +105,6 @@ export function deriveVisibility(
   }
 
   return Boolean(activeEditable);
-}
-
-export function mergeTransform(existingTransform: string, keyboardHeight: number): string {
-  const shift = `translate3d(0, -${keyboardHeight}px, 0)`;
-  const trimmed = existingTransform.trim();
-  return trimmed.length > 0 && trimmed !== 'none' ? `${trimmed} ${shift}` : shift;
-}
-
-export function makeStyleSnapshot(element: HTMLElement): OriginalStyleSnapshot {
-  return {
-    transform: element.style.transform,
-    transition: element.style.transition,
-    bottom: element.style.bottom
-  };
-}
-
-// Scroll fallback should prefer the nearest scroll container before moving the page.
-export function isScrollable(element: HTMLElement): boolean {
-  const styles = window.getComputedStyle(element);
-  const overflowY = styles.overflowY;
-  return /(auto|scroll|overlay)/.test(overflowY) && element.scrollHeight > element.clientHeight;
-}
-
-export function findScrollableAncestor(element: HTMLElement | null): HTMLElement | null {
-  let current = element?.parentElement ?? null;
-  while (current) {
-    if (isScrollable(current)) {
-      return current;
-    }
-    current = current.parentElement;
-  }
-
-  return null;
-}
-
-export function isBottomAnchoredCandidate(
-  element: HTMLElement,
-  viewportHeight: number,
-  overlayHost: HTMLElement | null
-): boolean {
-  if (overlayHost && overlayHost.contains(element)) {
-    return false;
-  }
-
-  if (element.getAttribute(IGNORE_ATTRIBUTE) === 'true') {
-    return false;
-  }
-
-  if (element.getAttribute(ANCHOR_ATTRIBUTE) === 'bottom') {
-    return true;
-  }
-
-  const styles = window.getComputedStyle(element);
-  if (!['fixed', 'sticky'].includes(styles.position)) {
-    return false;
-  }
-
-  const rect = element.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) {
-    return false;
-  }
-
-  return Math.abs(viewportHeight - rect.bottom) <= 24;
 }
 
 // Extension injection only works on regular web documents.

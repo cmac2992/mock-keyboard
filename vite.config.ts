@@ -1,7 +1,7 @@
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { build as esbuildBuild } from 'esbuild';
+import { copyFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import ts from 'typescript';
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite';
 
 const root = resolve(__dirname);
 const dist = resolve(root, 'dist');
@@ -9,24 +9,27 @@ const dist = resolve(root, 'dist');
 function copyManifestPlugin() {
   return {
     name: 'copy-manifest',
-    closeBundle() {
+    async closeBundle() {
       mkdirSync(dist, { recursive: true });
       copyFileSync(resolve(root, 'manifest.json'), resolve(dist, 'manifest.json'));
-      writeStandaloneScript('src/content/content-script.ts', 'content-script.js');
-      writeStandaloneScript('src/content/page-bridge.ts', 'page-bridge.js');
+      copyFileSync(resolve(root, 'src/content/overlay.css'), resolve(dist, 'overlay.css'));
+      await writeBundledBrowserScript('src/content/content-script.ts', 'content-script.js');
+      await writeBundledBrowserScript('src/content/page-bridge.ts', 'page-bridge.js');
     }
   };
 }
 
-function writeStandaloneScript(sourceFile: string, outputFile: string) {
-  const source = readFileSync(resolve(root, sourceFile), 'utf8');
-  const transpiled = ts.transpileModule(source, {
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.None
-    }
+async function writeBundledBrowserScript(sourceFile: string, outputFile: string) {
+  await esbuildBuild({
+    entryPoints: [resolve(root, sourceFile)],
+    bundle: true,
+    format: 'iife',
+    legalComments: 'none',
+    minify: false,
+    outfile: resolve(dist, outputFile),
+    platform: 'browser',
+    target: 'es2022'
   });
-  writeFileSync(resolve(dist, outputFile), transpiled.outputText, 'utf8');
 }
 
 export default defineConfig({
@@ -37,7 +40,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         devtools: resolve(root, 'src/devtools/devtools.html'),
-        panel: resolve(root, 'src/panel/panel.html'),
+        panel: resolve(root, 'src/devtools/panel.html'),
         'service-worker': resolve(root, 'src/background/service-worker.ts')
       },
       output: {
@@ -56,10 +59,5 @@ export default defineConfig({
       }
     }
   },
-  plugins: [copyManifestPlugin()],
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    include: ['test/unit/**/*.spec.ts']
-  }
+  plugins: [copyManifestPlugin()]
 });
