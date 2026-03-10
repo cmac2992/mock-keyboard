@@ -3,13 +3,19 @@
   "name": "Mock Keyboard",
   "version": "0.2.0",
   "description": "Simulate a mobile keyboard while developing responsive pages.",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
   "permissions": ["storage", "scripting", "tabs"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"
   },
-  "devtools_page": "src/devtools/devtools.html",
+  "devtools_page": "devtools.html",
   "web_accessible_resources": [
     {
       "resources": ["overlay.css", "page-bridge.js"],

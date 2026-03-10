@@ -1,5 +1,5 @@
 import { build as esbuildBuild } from 'esbuild';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { cpSync, copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
@@ -13,6 +13,10 @@ function copyManifestPlugin() {
       mkdirSync(dist, { recursive: true });
       copyFileSync(resolve(root, 'manifest.json'), resolve(dist, 'manifest.json'));
       copyFileSync(resolve(root, 'src/content/overlay.css'), resolve(dist, 'overlay.css'));
+      cpSync(resolve(root, 'assets/icons'), resolve(dist, 'assets/icons'), { recursive: true });
+      copyFileSync(resolve(dist, 'src/devtools/devtools.html'), resolve(dist, 'devtools.html'));
+      copyFileSync(resolve(dist, 'src/devtools/panel.html'), resolve(dist, 'panel.html'));
+      rmSync(resolve(dist, 'src'), { recursive: true, force: true });
       await writeBundledBrowserScript('src/content/content-script.ts', 'content-script.js');
       await writeBundledBrowserScript('src/content/page-bridge.ts', 'page-bridge.js');
     }

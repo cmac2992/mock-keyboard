@@ -78,3 +78,14 @@ This stays intentionally narrow:
 - meant for development, not production
 
 It is a simulator for keyboard-aware mobile UI work, not full mobile browser emulation.
+
+## Limitations
+
+- The keyboard is visual only right now. It does not type or behave like a fully interactive IME yet.
+- The current Android keyboard is a simplified representation intended to make viewport and layout behavior easier to test.
+- This is still a simulator. Real-device testing is still necessary before trusting complex mobile behavior.
+
+## Upcoming
+
+- iOS keyboard version
+- interactive key behavior instead of a display-only keyboard

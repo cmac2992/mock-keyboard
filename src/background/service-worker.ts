@@ -101,6 +101,7 @@ async function handleMessage(
   message: PanelToBackgroundMessage | ContentToBackgroundMessage,
   sender: chrome.runtime.MessageSender
 ): Promise<TabState | undefined> {
+  // Content script reporting its current state back to the background.
   if (message.type === 'CONTENT_STATE') {
     const tabId = sender.tab?.id ?? message.tabId;
     if (!tabId) {
@@ -108,16 +109,12 @@ async function handleMessage(
     }
 
     const existing = await getOrCreateState(tabId);
-    const nextState: TabState = {
-      tabId,
-      keyboard: {
-        ...existing.keyboard,
-        visible: message.state.visible,
-        heightPx: message.state.heightPx,
-        activeSelector: message.state.activeSelector,
-        unsupportedReason: message.state.unsupportedReason
-      }
-    };
+    const nextState = updateTabKeyboard(existing, {
+      visible: message.state.visible,
+      heightPx: message.state.heightPx,
+      activeSelector: message.state.activeSelector,
+      unsupportedReason: message.state.unsupportedReason
+    });
     await persistState(nextState);
     broadcastState(nextState);
     return nextState;
@@ -129,81 +126,55 @@ async function handleMessage(
   switch (message.type) {
     case 'INIT_TAB':
       break;
+
     case 'SET_ENABLED':
-      nextState = {
-        tabId: current.tabId,
-        keyboard: {
-          ...current.keyboard,
-          enabled: message.enabled,
-          unsupportedReason: null
-        }
-      };
+      nextState = updateTabKeyboard(current, { enabled: message.enabled, unsupportedReason: null });
       if (message.enabled) {
         const injected = await ensureContentScript(message.tabId);
         if (!injected) {
-          nextState = {
-            ...nextState,
-            keyboard: {
-              ...nextState.keyboard,
-              enabled: false,
-              unsupportedReason: 'Unsupported page. The extension can only run on regular http/https documents.'
-            }
-          };
+          nextState = updateTabKeyboard(nextState, {
+            enabled: false,
+            unsupportedReason: 'Unsupported page. The extension can only run on regular http/https documents.'
+          });
         }
       } else {
-        nextState = {
-          ...nextState,
-          keyboard: {
-            ...nextState.keyboard,
-            visible: false,
-            heightPx: 0,
-            activeSelector: null
-          }
-        };
+        nextState = updateTabKeyboard(nextState, { visible: false, heightPx: 0, activeSelector: null });
       }
       break;
+
     case 'SET_VISIBILITY_MODE':
-      nextState = {
-        tabId: current.tabId,
-        keyboard: {
-          ...current.keyboard,
-          visibilityMode: message.visibilityMode
-        }
-      };
+      nextState = updateTabKeyboard(current, { visibilityMode: message.visibilityMode });
       await persistDefaults(nextState.keyboard);
       break;
+
     case 'SET_PRESET':
-      nextState = {
-        tabId: current.tabId,
-        keyboard: {
-          ...current.keyboard,
-          preset: message.preset
-        }
-      };
+      nextState = updateTabKeyboard(current, { preset: message.preset });
       await persistDefaults(nextState.keyboard);
       break;
+
     case 'SET_DEBUG':
-      nextState = {
-        tabId: current.tabId,
-        keyboard: {
-          ...current.keyboard,
-          debug: message.debug
-        }
-      };
+      nextState = updateTabKeyboard(current, { debug: message.debug });
       await persistDefaults(nextState.keyboard);
       break;
   }
 
   await persistState(nextState);
 
-  if (nextState.keyboard.enabled) {
-    await syncStateToTab(message.tabId, nextState.keyboard).catch(() => undefined);
-  } else if (current.keyboard.enabled || nextState.keyboard.unsupportedReason === null) {
+  // Sync when enabled, or when transitioning to disabled so the content script
+  // can tear itself down. Avoid syncing when the tab never had a content script.
+  const wasEnabled = current.keyboard.enabled;
+  const isEnabled = nextState.keyboard.enabled;
+  if (isEnabled || wasEnabled) {
     await syncStateToTab(message.tabId, nextState.keyboard).catch(() => undefined);
   }
 
   broadcastState(nextState);
   return nextState;
+}
+
+// Creates a shallow copy of a TabState with keyboard fields patched.
+function updateTabKeyboard(state: TabState, patch: Partial<KeyboardState>): TabState {
+  return { tabId: state.tabId, keyboard: { ...state.keyboard, ...patch } };
 }
 
 async function ensureContentScript(tabId: number): Promise<boolean> {

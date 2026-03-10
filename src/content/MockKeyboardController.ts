@@ -2,8 +2,7 @@ import { createElement } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { KeyboardOverlay } from './KeyboardOverlay';
-import type { KeyboardOverlayDebugModel } from './KeyboardOverlay';
-import { buildOverlayDebugModel, buildOverlayProps } from './overlayState';
+import type { KeyboardOverlayDebugModel, KeyboardOverlayProps } from './KeyboardOverlay';
 import { PageBridgeClient, type BridgeWindow } from './bridgeClient';
 import {
   ANIMATION_MS,
@@ -16,6 +15,7 @@ import type {
   ContentToBackgroundMessage,
   KeyboardDebugSnapshot,
   KeyboardState,
+  KeyboardViewportMetrics,
   MockKeyboardChangeDetail
 } from '../shared/types';
 import {
@@ -24,7 +24,9 @@ import {
   deriveVisibility,
   describeElement,
   getViewportMetrics,
+  isContextInvalidationError,
   isEditableElement,
+  isExtensionContextAlive,
   setCssVar
 } from '../shared/utils';
 
@@ -40,8 +42,9 @@ export type PageWindow = BridgeWindow &
     __mockKeyboardController__?: MockKeyboardController;
   };
 
-// The controller coordinates the tab lifecycle. Rendering and bridge plumbing now
-// live in smaller helpers so this file can stay focused on state transitions.
+// The controller coordinates the tab lifecycle. It listens for focus/viewport
+// events and syncs state from the background, then renders the overlay and
+// dispatches the public `mockkeyboardchange` event via the page bridge.
 export class MockKeyboardController {
   private state: KeyboardState = { ...DEFAULT_KEYBOARD_STATE };
   private activeEditable: HTMLElement | null = null;
@@ -76,7 +79,7 @@ export class MockKeyboardController {
   };
 
   constructor() {
-    if (!this.isExtensionContextAlive()) {
+    if (!isExtensionContextAlive()) {
       return;
     }
 
@@ -106,7 +109,6 @@ export class MockKeyboardController {
       return;
     }
 
-    this.ensureOverlay();
     this.recompute(this.getCurrentSource());
   }
 
@@ -149,6 +151,7 @@ export class MockKeyboardController {
       window.clearTimeout(this.blurTimer);
     }
 
+    // Small delay so we can check if focus moved to another editable element.
     this.blurTimer = window.setTimeout(() => {
       this.activeEditable = getCurrentEditable();
       this.recompute(this.getCurrentSource());
@@ -160,6 +163,7 @@ export class MockKeyboardController {
       return;
     }
 
+    // Batch viewport changes to one recompute per animation frame.
     this.viewportRafId = window.requestAnimationFrame(() => {
       this.viewportRafId = null;
       this.recompute(this.getCurrentSource());
@@ -257,7 +261,7 @@ export class MockKeyboardController {
     }
 
     const viewport = getViewportMetrics(window);
-    const badgeModel = this.state.debug ? buildOverlayDebugModel(this.state, viewport, window) : null;
+    const debugModel = this.state.debug ? buildDebugModel(this.state, viewport, window) : null;
 
     this.clearDebugMarks();
     if (this.state.debug && this.activeEditable) {
@@ -266,7 +270,7 @@ export class MockKeyboardController {
     }
 
     this.overlay.reactRoot.render(
-      createElement(KeyboardOverlay, buildOverlayProps(this.state, viewport, badgeModel))
+      createElement(KeyboardOverlay, buildOverlayProps(this.state, viewport, debugModel))
     );
   }
 
@@ -327,7 +331,7 @@ export class MockKeyboardController {
   }
 
   private sendRuntimeState(): void {
-    if (!this.isExtensionContextAlive()) {
+    if (!isExtensionContextAlive()) {
       this.destroy();
       return;
     }
@@ -352,7 +356,7 @@ export class MockKeyboardController {
   }
 
   private safeGetRuntimeUrl(path: string): string | null {
-    if (!this.isExtensionContextAlive()) {
+    if (!isExtensionContextAlive()) {
       this.destroy();
       return null;
     }
@@ -365,14 +369,6 @@ export class MockKeyboardController {
         return null;
       }
       throw error;
-    }
-  }
-
-  private isExtensionContextAlive(): boolean {
-    try {
-      return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
-    } catch {
-      return false;
     }
   }
 
@@ -440,7 +436,7 @@ export class MockKeyboardController {
     }
 
     try {
-      if (this.isExtensionContextAlive()) {
+      if (isExtensionContextAlive()) {
         chrome.runtime.onMessage.removeListener(this.runtimeMessageListener);
       }
     } catch {
@@ -463,6 +459,53 @@ export class MockKeyboardController {
   }
 }
 
+// --- Overlay prop builders (co-located with the controller that uses them) ---
+
+function buildOverlayProps(
+  state: KeyboardState,
+  viewport: KeyboardViewportMetrics,
+  debugModel: KeyboardOverlayDebugModel | null
+): KeyboardOverlayProps {
+  const keyboardHeight = state.visible ? state.heightPx : 0;
+  return {
+    visible: state.enabled && state.visible,
+    preset: state.preset,
+    safeAreaVisible: state.enabled && state.visible && state.debug,
+    badgeVisible: state.debug,
+    badgeModel: debugModel,
+    keyboardStyle: {
+      left: `${viewport.offsetLeft}px`,
+      top: `${viewport.offsetTop + viewport.height - keyboardHeight}px`,
+      width: `${viewport.width}px`,
+      height: `${keyboardHeight}px`
+    },
+    safeAreaStyle: {
+      left: `${viewport.offsetLeft}px`,
+      top: `${viewport.offsetTop}px`,
+      width: `${viewport.width}px`,
+      height: `${Math.max(0, viewport.height - keyboardHeight)}px`
+    }
+  };
+}
+
+function buildDebugModel(
+  state: KeyboardState,
+  viewport: KeyboardViewportMetrics,
+  win: Window
+): KeyboardOverlayDebugModel {
+  return {
+    visible: state.visible,
+    heightPx: state.heightPx,
+    preset: state.preset,
+    keyboardOffsetPx: computeKeyboardOffsetFormulaPx(win),
+    viewportLabel: `${viewport.height.toFixed(0)}h / ${viewport.width.toFixed(0)}w`,
+    innerHeightLabel: `${win.innerHeight}px`,
+    sourceLabel: state.visibilityMode
+  };
+}
+
+// --- Module-level helpers ---
+
 function didKeyboardGeometryChange(previous: KeyboardState, next: KeyboardState): boolean {
   return (
     previous.visible !== next.visible ||
@@ -473,8 +516,4 @@ function didKeyboardGeometryChange(previous: KeyboardState, next: KeyboardState)
 
 function getCurrentEditable(): HTMLElement | null {
   return isEditableElement(document.activeElement) ? document.activeElement : null;
-}
-
-function isContextInvalidationError(error: unknown): boolean {
-  return error instanceof Error && /Extension context invalidated/i.test(error.message);
 }
