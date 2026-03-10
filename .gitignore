@@ -1,9 +1,8 @@
 .claude/
+**/.claude/
 node_modules/
-dist/
 test-results/
 playwright-report/
-.claude/
 
 .DS_Store
 Thumbs.db
