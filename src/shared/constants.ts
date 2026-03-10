@@ -35,17 +35,6 @@ export const DEFAULT_KEYBOARD_STATE: KeyboardState = {
   unsupportedReason: null
 };
 
-// Internal custom events for cross-world communication between the content script
-// and the page bridge (page-bridge.js). These are not public API.
-// The public event is KEYBOARD_CHANGE_EVENT, fired on `window` by the page bridge.
-export const BRIDGE_KEYBOARD_EVENT = '__mock-keyboard-event';
-export const BRIDGE_CONTROL_EVENT = '__mock-keyboard-control';
-export const KEYBOARD_CHANGE_EVENT = 'mockkeyboardchange';
-
-// DOM markers shared between the content world and the page bridge.
-export const BRIDGE_READY_ATTRIBUTE = 'data-mock-keyboard-bridge';
-export const BRIDGE_DEBUG_NODE_ID = '__mock-keyboard-page-debug';
-
 export const NON_TEXT_INPUT_TYPES = new Set([
   'button',
   'checkbox',

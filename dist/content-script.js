@@ -21854,6 +21854,11 @@
   var ROOT_DATA_ATTRIBUTE = "data-mock-keyboard";
   var OVERLAY_HOST_ID = "__mock-keyboard-host";
   var ANIMATION_MS = 220;
+  var BRIDGE_KEYBOARD_EVENT = "__mock-keyboard-event";
+  var BRIDGE_CONTROL_EVENT = "__mock-keyboard-control";
+  var KEYBOARD_CHANGE_EVENT = "mockkeyboardchange";
+  var BRIDGE_READY_ATTRIBUTE = "data-mock-keyboard-bridge";
+  var BRIDGE_DEBUG_NODE_ID = "__mock-keyboard-page-debug";
   var DEFAULT_KEYBOARD_STATE = {
     enabled: false,
     visibilityMode: "auto",
@@ -21876,6 +21881,93 @@
     "reset",
     "submit"
   ]);
+
+  // src/content/bridgeClient.ts
+  var PageBridgeClient = class {
+    constructor(pageWindow, getRuntimeUrl) {
+      this.pageWindow = pageWindow;
+      this.getRuntimeUrl = getRuntimeUrl;
+    }
+    bridgeReady = false;
+    pendingDetail = null;
+    lastDetail = null;
+    ensureInjected() {
+      if (document.documentElement.getAttribute(BRIDGE_READY_ATTRIBUTE) === "ready") {
+        this.bridgeReady = true;
+        this.flushPendingDetail();
+        return;
+      }
+      if (this.pageWindow.__mockKeyboardBridgeInjected__) {
+        return;
+      }
+      const bridgeUrl = this.getRuntimeUrl("page-bridge.js");
+      if (!bridgeUrl) {
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = bridgeUrl;
+      script.async = false;
+      script.addEventListener("load", () => {
+        this.bridgeReady = true;
+        this.flushPendingDetail();
+        script.remove();
+      });
+      script.addEventListener("error", () => {
+        const detail = this.pendingDetail;
+        this.pendingDetail = null;
+        if (detail) {
+          window.dispatchEvent(new CustomEvent(KEYBOARD_CHANGE_EVENT, { detail }));
+        }
+        script.remove();
+      });
+      (document.head ?? document.documentElement).append(script);
+      this.pageWindow.__mockKeyboardBridgeInjected__ = true;
+    }
+    dispatch(detail) {
+      this.lastDetail = detail;
+      if (this.bridgeReady) {
+        document.dispatchEvent(new CustomEvent(BRIDGE_KEYBOARD_EVENT, { detail }));
+        return;
+      }
+      this.pendingDetail = detail;
+    }
+    teardown() {
+      this.bridgeReady = false;
+      this.pendingDetail = null;
+      document.dispatchEvent(
+        new CustomEvent(BRIDGE_CONTROL_EVENT, { detail: { type: "teardown" } })
+      );
+      document.getElementById(BRIDGE_DEBUG_NODE_ID)?.remove();
+      document.documentElement.removeAttribute(BRIDGE_READY_ATTRIBUTE);
+      this.pageWindow.__mockKeyboardBridgeInjected__ = false;
+    }
+    getDebugState() {
+      return {
+        bridgeInjected: Boolean(this.pageWindow.__mockKeyboardBridgeInjected__) || document.documentElement.getAttribute(BRIDGE_READY_ATTRIBUTE) === "ready",
+        bridgeReady: this.bridgeReady,
+        pendingBridgeEvent: this.pendingDetail !== null,
+        lastChange: this.lastDetail
+      };
+    }
+    readPageDebugSnapshot() {
+      const debugNode = document.getElementById(BRIDGE_DEBUG_NODE_ID);
+      if (!debugNode?.textContent) {
+        return null;
+      }
+      try {
+        return JSON.parse(debugNode.textContent);
+      } catch {
+        return null;
+      }
+    }
+    flushPendingDetail() {
+      if (!this.pendingDetail) {
+        return;
+      }
+      document.dispatchEvent(new CustomEvent(BRIDGE_KEYBOARD_EVENT, { detail: this.pendingDetail }));
+      this.pendingDetail = null;
+    }
+  };
 
   // src/shared/utils.ts
   function computeKeyboardHeight(preset, viewportHeight) {
@@ -21964,138 +22056,16 @@
     }
     style.setProperty(name, value);
   }
-
-  // src/content/overlayState.ts
-  function buildOverlayDebugModel(state, viewport, win) {
-    return {
-      visible: state.visible,
-      heightPx: state.heightPx,
-      preset: state.preset,
-      keyboardOffsetPx: computeKeyboardOffsetFormulaPx(win),
-      viewportLabel: `${viewport.height.toFixed(0)}h / ${viewport.width.toFixed(0)}w`,
-      innerHeightLabel: `${win.innerHeight}px`,
-      sourceLabel: state.visibilityMode
-    };
+  function isExtensionContextAlive() {
+    try {
+      return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
   }
-  function buildOverlayProps(state, viewport, badgeModel) {
-    const keyboardHeight = state.visible ? state.heightPx : 0;
-    return {
-      visible: state.enabled && state.visible,
-      preset: state.preset,
-      safeAreaVisible: state.enabled && state.visible && state.debug,
-      badgeVisible: state.debug,
-      badgeModel,
-      ...buildOverlayLayoutStyles(viewport, keyboardHeight)
-    };
+  function isContextInvalidationError(error) {
+    return error instanceof Error && /Extension context invalidated/i.test(error.message);
   }
-  function buildOverlayLayoutStyles(viewport, keyboardHeight) {
-    return {
-      keyboardStyle: {
-        left: `${viewport.offsetLeft}px`,
-        top: `${viewport.offsetTop + viewport.height - keyboardHeight}px`,
-        width: `${viewport.width}px`,
-        height: `${keyboardHeight}px`
-      },
-      safeAreaStyle: {
-        left: `${viewport.offsetLeft}px`,
-        top: `${viewport.offsetTop}px`,
-        width: `${viewport.width}px`,
-        height: `${Math.max(0, viewport.height - keyboardHeight)}px`
-      }
-    };
-  }
-
-  // src/content/bridgeClient.ts
-  var CONTENT_BRIDGE_EVENT_NAME = "__mockkeyboardbridge";
-  var CONTENT_BRIDGE_CONTROL_EVENT_NAME = "__mockkeyboardbridgecontrol";
-  var CONTENT_PUBLIC_EVENT_NAME = "mockkeyboardchange";
-  var PAGE_BRIDGE_READY_ATTRIBUTE = "data-mock-keyboard-bridge";
-  var PAGE_DEBUG_NODE_ID = "__mock-keyboard-page-debug";
-  var PageBridgeClient = class {
-    constructor(pageWindow, getRuntimeUrl) {
-      this.pageWindow = pageWindow;
-      this.getRuntimeUrl = getRuntimeUrl;
-    }
-    bridgeReady = false;
-    pendingDetail = null;
-    lastDetail = null;
-    ensureInjected() {
-      if (document.documentElement.getAttribute(PAGE_BRIDGE_READY_ATTRIBUTE) === "ready") {
-        this.bridgeReady = true;
-        this.flushPendingDetail();
-        return;
-      }
-      if (this.pageWindow.__mockKeyboardBridgeInjected__) {
-        return;
-      }
-      const bridgeUrl = this.getRuntimeUrl("page-bridge.js");
-      if (!bridgeUrl) {
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = bridgeUrl;
-      script.async = false;
-      script.addEventListener("load", () => {
-        this.bridgeReady = true;
-        this.flushPendingDetail();
-        script.remove();
-      });
-      script.addEventListener("error", () => {
-        const detail = this.pendingDetail;
-        this.pendingDetail = null;
-        if (detail) {
-          window.dispatchEvent(new CustomEvent(CONTENT_PUBLIC_EVENT_NAME, { detail }));
-        }
-        script.remove();
-      });
-      (document.head ?? document.documentElement).append(script);
-      this.pageWindow.__mockKeyboardBridgeInjected__ = true;
-    }
-    dispatch(detail) {
-      this.lastDetail = detail;
-      if (this.bridgeReady) {
-        document.dispatchEvent(new CustomEvent(CONTENT_BRIDGE_EVENT_NAME, { detail }));
-        return;
-      }
-      this.pendingDetail = detail;
-    }
-    teardown() {
-      this.bridgeReady = false;
-      this.pendingDetail = null;
-      document.dispatchEvent(
-        new CustomEvent(CONTENT_BRIDGE_CONTROL_EVENT_NAME, { detail: { type: "teardown" } })
-      );
-      document.getElementById(PAGE_DEBUG_NODE_ID)?.remove();
-      document.documentElement.removeAttribute(PAGE_BRIDGE_READY_ATTRIBUTE);
-      this.pageWindow.__mockKeyboardBridgeInjected__ = false;
-    }
-    getDebugState() {
-      return {
-        bridgeInjected: Boolean(this.pageWindow.__mockKeyboardBridgeInjected__) || document.documentElement.getAttribute(PAGE_BRIDGE_READY_ATTRIBUTE) === "ready",
-        bridgeReady: this.bridgeReady,
-        pendingBridgeEvent: this.pendingDetail !== null,
-        lastChange: this.lastDetail
-      };
-    }
-    readPageDebugSnapshot() {
-      const debugNode = document.getElementById(PAGE_DEBUG_NODE_ID);
-      if (!debugNode?.textContent) {
-        return null;
-      }
-      try {
-        return JSON.parse(debugNode.textContent);
-      } catch {
-        return null;
-      }
-    }
-    flushPendingDetail() {
-      if (!this.pendingDetail) {
-        return;
-      }
-      document.dispatchEvent(new CustomEvent(CONTENT_BRIDGE_EVENT_NAME, { detail: this.pendingDetail }));
-      this.pendingDetail = null;
-    }
-  };
 
   // src/content/MockKeyboardController.ts
   var MockKeyboardController = class {
@@ -22124,7 +22094,7 @@
       return false;
     };
     constructor() {
-      if (!this.isExtensionContextAlive()) {
+      if (!isExtensionContextAlive()) {
         return;
       }
       this.bridgeClient.ensureInjected();
@@ -22149,7 +22119,6 @@
         this.destroy();
         return;
       }
-      this.ensureOverlay();
       this.recompute(this.getCurrentSource());
     }
     bindGlobalListeners() {
@@ -22270,14 +22239,14 @@
         return;
       }
       const viewport = getViewportMetrics(window);
-      const badgeModel = this.state.debug ? buildOverlayDebugModel(this.state, viewport, window) : null;
+      const debugModel = this.state.debug ? buildDebugModel(this.state, viewport, window) : null;
       this.clearDebugMarks();
       if (this.state.debug && this.activeEditable) {
         this.activeEditable.dataset.mockKeyboardDebugFocused = "true";
         this.debugFocused.add(this.activeEditable);
       }
       this.overlay.reactRoot.render(
-        (0, import_react.createElement)(KeyboardOverlay, buildOverlayProps(this.state, viewport, badgeModel))
+        (0, import_react.createElement)(KeyboardOverlay, buildOverlayProps(this.state, viewport, debugModel))
       );
     }
     applyRootHooks() {
@@ -22330,7 +22299,7 @@
       return this.state.visibilityMode === "force-open" ? "manual" : "auto-focus";
     }
     sendRuntimeState() {
-      if (!this.isExtensionContextAlive()) {
+      if (!isExtensionContextAlive()) {
         this.destroy();
         return;
       }
@@ -22351,7 +22320,7 @@
       }
     }
     safeGetRuntimeUrl(path) {
-      if (!this.isExtensionContextAlive()) {
+      if (!isExtensionContextAlive()) {
         this.destroy();
         return null;
       }
@@ -22363,13 +22332,6 @@
           return null;
         }
         throw error;
-      }
-    }
-    isExtensionContextAlive() {
-      try {
-        return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id);
-      } catch {
-        return false;
       }
     }
     ensureDebugStyle() {
@@ -22427,7 +22389,7 @@
         this.listenersBound = false;
       }
       try {
-        if (this.isExtensionContextAlive()) {
+        if (isExtensionContextAlive()) {
           chrome.runtime.onMessage.removeListener(this.runtimeMessageListener);
         }
       } catch {
@@ -22445,14 +22407,44 @@
       delete this.pageWindow.__mockKeyboardController__;
     }
   };
+  function buildOverlayProps(state, viewport, debugModel) {
+    const keyboardHeight = state.visible ? state.heightPx : 0;
+    return {
+      visible: state.enabled && state.visible,
+      preset: state.preset,
+      safeAreaVisible: state.enabled && state.visible && state.debug,
+      badgeVisible: state.debug,
+      badgeModel: debugModel,
+      keyboardStyle: {
+        left: `${viewport.offsetLeft}px`,
+        top: `${viewport.offsetTop + viewport.height - keyboardHeight}px`,
+        width: `${viewport.width}px`,
+        height: `${keyboardHeight}px`
+      },
+      safeAreaStyle: {
+        left: `${viewport.offsetLeft}px`,
+        top: `${viewport.offsetTop}px`,
+        width: `${viewport.width}px`,
+        height: `${Math.max(0, viewport.height - keyboardHeight)}px`
+      }
+    };
+  }
+  function buildDebugModel(state, viewport, win) {
+    return {
+      visible: state.visible,
+      heightPx: state.heightPx,
+      preset: state.preset,
+      keyboardOffsetPx: computeKeyboardOffsetFormulaPx(win),
+      viewportLabel: `${viewport.height.toFixed(0)}h / ${viewport.width.toFixed(0)}w`,
+      innerHeightLabel: `${win.innerHeight}px`,
+      sourceLabel: state.visibilityMode
+    };
+  }
   function didKeyboardGeometryChange(previous, next) {
     return previous.visible !== next.visible || previous.heightPx !== next.heightPx || previous.preset !== next.preset;
   }
   function getCurrentEditable() {
     return isEditableElement(document.activeElement) ? document.activeElement : null;
-  }
-  function isContextInvalidationError(error) {
-    return error instanceof Error && /Extension context invalidated/i.test(error.message);
   }
 
   // src/content/content-script.ts

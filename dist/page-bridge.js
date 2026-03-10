@@ -1,5 +1,12 @@
 "use strict";
 (() => {
+  // src/shared/constants.ts
+  var BRIDGE_KEYBOARD_EVENT = "__mock-keyboard-event";
+  var BRIDGE_CONTROL_EVENT = "__mock-keyboard-control";
+  var KEYBOARD_CHANGE_EVENT = "mockkeyboardchange";
+  var BRIDGE_READY_ATTRIBUTE = "data-mock-keyboard-bridge";
+  var BRIDGE_DEBUG_NODE_ID = "__mock-keyboard-page-debug";
+
   // src/shared/utils.ts
   function computeKeyboardOffsetFormulaPx(win) {
     const visualViewport = win.visualViewport;
@@ -12,15 +19,10 @@
   }
 
   // src/content/page-bridge.ts
-  var PAGE_BRIDGE_EVENT_NAME = "__mockkeyboardbridge";
-  var PAGE_BRIDGE_CONTROL_EVENT_NAME = "__mockkeyboardbridgecontrol";
-  var PAGE_PUBLIC_EVENT_NAME = "mockkeyboardchange";
-  var PAGE_BRIDGE_READY_ATTRIBUTE = "data-mock-keyboard-bridge";
-  var PAGE_DEBUG_NODE_ID = "__mock-keyboard-page-debug";
   (() => {
     const pageWindow = window;
     if (pageWindow.__MOCK_KEYBOARD_BRIDGE__) {
-      document.documentElement.setAttribute(PAGE_BRIDGE_READY_ATTRIBUTE, "ready");
+      document.documentElement.setAttribute(BRIDGE_READY_ATTRIBUTE, "ready");
       return;
     }
     const runtime = createBridgeRuntime(pageWindow);
@@ -35,7 +37,7 @@
       source: "disabled"
     };
     const viewportShim = installViewportShim();
-    const handleBridgeEvent = (event) => {
+    const handleKeyboardEvent = (event) => {
       const detail = event.detail;
       lastEvent = detail;
       eventCount += 1;
@@ -45,7 +47,7 @@
       const snapshot = createDebugSnapshot(viewportShim, detail, eventCount);
       pageWindow.__MOCK_KEYBOARD_DEBUG__ = snapshot;
       publishDebugSnapshot(snapshot);
-      window.dispatchEvent(new CustomEvent(PAGE_PUBLIC_EVENT_NAME, { detail }));
+      window.dispatchEvent(new CustomEvent(KEYBOARD_CHANGE_EVENT, { detail }));
     };
     const handleControlEvent = (event) => {
       const detail = event.detail;
@@ -58,16 +60,16 @@
       pageWindow.__MOCK_KEYBOARD_EVENT_COUNT__ = eventCount;
       pageWindow.__MOCK_KEYBOARD_VIEWPORT_SHIM__ = viewportShim;
       pageWindow.__MOCK_KEYBOARD_BRIDGE_TEARDOWN__ = teardown;
-      document.documentElement.setAttribute(PAGE_BRIDGE_READY_ATTRIBUTE, "ready");
-      document.addEventListener(PAGE_BRIDGE_EVENT_NAME, handleBridgeEvent);
-      document.addEventListener(PAGE_BRIDGE_CONTROL_EVENT_NAME, handleControlEvent);
+      document.documentElement.setAttribute(BRIDGE_READY_ATTRIBUTE, "ready");
+      document.addEventListener(BRIDGE_KEYBOARD_EVENT, handleKeyboardEvent);
+      document.addEventListener(BRIDGE_CONTROL_EVENT, handleControlEvent);
     }
     function teardown() {
-      document.removeEventListener(PAGE_BRIDGE_EVENT_NAME, handleBridgeEvent);
-      document.removeEventListener(PAGE_BRIDGE_CONTROL_EVENT_NAME, handleControlEvent);
+      document.removeEventListener(BRIDGE_KEYBOARD_EVENT, handleKeyboardEvent);
+      document.removeEventListener(BRIDGE_CONTROL_EVENT, handleControlEvent);
       restoreViewportShim(viewportShim);
-      document.documentElement.removeAttribute(PAGE_BRIDGE_READY_ATTRIBUTE);
-      document.getElementById(PAGE_DEBUG_NODE_ID)?.remove();
+      document.documentElement.removeAttribute(BRIDGE_READY_ATTRIBUTE);
+      document.getElementById(BRIDGE_DEBUG_NODE_ID)?.remove();
       delete pageWindow.__MOCK_KEYBOARD_BRIDGE__;
       delete pageWindow.__MOCK_KEYBOARD_BRIDGE_TEARDOWN__;
       delete pageWindow.__MOCK_KEYBOARD_LAST__;
@@ -195,10 +197,10 @@
     };
   }
   function publishDebugSnapshot(snapshot) {
-    let debugNode = document.getElementById(PAGE_DEBUG_NODE_ID);
+    let debugNode = document.getElementById(BRIDGE_DEBUG_NODE_ID);
     if (!debugNode) {
       debugNode = document.createElement("script");
-      debugNode.id = PAGE_DEBUG_NODE_ID;
+      debugNode.id = BRIDGE_DEBUG_NODE_ID;
       debugNode.type = "application/json";
       document.documentElement.append(debugNode);
     }

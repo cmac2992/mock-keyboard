@@ -1,1 +1,0 @@
-const a="mock-keyboard-panel:",d="mock-keyboard-tab:",o="mock-keyboard-defaults",e={"android-compact":"Android Compact","android-standard":"Android Standard","android-tall":"Android Tall"},n={enabled:!1,visibilityMode:"auto",preset:"android-standard",visible:!1,heightPx:0,debug:!1,activeSelector:null,unsupportedReason:null};export{n as D,e as K,a as P,d as T,o as a};
