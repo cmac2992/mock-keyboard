@@ -1,5 +1,17 @@
 import type { MockKeyboardChangeDetail, PageDebugSnapshot } from '../shared/types';
 import { computeKeyboardOffsetFormulaPx } from '../shared/utils';
+import {
+  BRIDGE_CONTROL_EVENT,
+  BRIDGE_DEBUG_NODE_ID,
+  BRIDGE_KEYBOARD_EVENT,
+  BRIDGE_READY_ATTRIBUTE,
+  KEYBOARD_CHANGE_EVENT
+} from '../shared/constants';
+
+// This script runs in the page's main JS world (not the extension's isolated world).
+// It patches window.innerHeight and visualViewport so that app code sees the
+// keyboard as if the browser had natively shrunk the viewport, then fires the
+// public `mockkeyboardchange` event on window.
 
 interface PropertyPatch {
   restore(): void;
@@ -27,17 +39,11 @@ interface BridgeWindow extends Window {
   __MOCK_KEYBOARD_EVENT_COUNT__?: number;
 }
 
-const PAGE_BRIDGE_EVENT_NAME = '__mockkeyboardbridge';
-const PAGE_BRIDGE_CONTROL_EVENT_NAME = '__mockkeyboardbridgecontrol';
-const PAGE_PUBLIC_EVENT_NAME = 'mockkeyboardchange';
-const PAGE_BRIDGE_READY_ATTRIBUTE = 'data-mock-keyboard-bridge';
-const PAGE_DEBUG_NODE_ID = '__mock-keyboard-page-debug';
-
 (() => {
   const pageWindow = window as BridgeWindow;
 
   if (pageWindow.__MOCK_KEYBOARD_BRIDGE__) {
-    document.documentElement.setAttribute(PAGE_BRIDGE_READY_ATTRIBUTE, 'ready');
+    document.documentElement.setAttribute(BRIDGE_READY_ATTRIBUTE, 'ready');
     return;
   }
 
@@ -55,7 +61,7 @@ function createBridgeRuntime(pageWindow: BridgeWindow) {
   };
   const viewportShim = installViewportShim();
 
-  const handleBridgeEvent = (event: Event) => {
+  const handleKeyboardEvent = (event: Event) => {
     const detail = (event as CustomEvent<MockKeyboardChangeDetail>).detail;
     lastEvent = detail;
     eventCount += 1;
@@ -68,7 +74,7 @@ function createBridgeRuntime(pageWindow: BridgeWindow) {
     pageWindow.__MOCK_KEYBOARD_DEBUG__ = snapshot;
     publishDebugSnapshot(snapshot);
 
-    window.dispatchEvent(new CustomEvent(PAGE_PUBLIC_EVENT_NAME, { detail }));
+    window.dispatchEvent(new CustomEvent(KEYBOARD_CHANGE_EVENT, { detail }));
   };
 
   const handleControlEvent = (event: Event) => {
@@ -84,18 +90,18 @@ function createBridgeRuntime(pageWindow: BridgeWindow) {
     pageWindow.__MOCK_KEYBOARD_VIEWPORT_SHIM__ = viewportShim;
     pageWindow.__MOCK_KEYBOARD_BRIDGE_TEARDOWN__ = teardown;
 
-    document.documentElement.setAttribute(PAGE_BRIDGE_READY_ATTRIBUTE, 'ready');
-    document.addEventListener(PAGE_BRIDGE_EVENT_NAME, handleBridgeEvent);
-    document.addEventListener(PAGE_BRIDGE_CONTROL_EVENT_NAME, handleControlEvent);
+    document.documentElement.setAttribute(BRIDGE_READY_ATTRIBUTE, 'ready');
+    document.addEventListener(BRIDGE_KEYBOARD_EVENT, handleKeyboardEvent);
+    document.addEventListener(BRIDGE_CONTROL_EVENT, handleControlEvent);
   }
 
   function teardown(): void {
-    document.removeEventListener(PAGE_BRIDGE_EVENT_NAME, handleBridgeEvent);
-    document.removeEventListener(PAGE_BRIDGE_CONTROL_EVENT_NAME, handleControlEvent);
+    document.removeEventListener(BRIDGE_KEYBOARD_EVENT, handleKeyboardEvent);
+    document.removeEventListener(BRIDGE_CONTROL_EVENT, handleControlEvent);
     restoreViewportShim(viewportShim);
 
-    document.documentElement.removeAttribute(PAGE_BRIDGE_READY_ATTRIBUTE);
-    document.getElementById(PAGE_DEBUG_NODE_ID)?.remove();
+    document.documentElement.removeAttribute(BRIDGE_READY_ATTRIBUTE);
+    document.getElementById(BRIDGE_DEBUG_NODE_ID)?.remove();
 
     delete pageWindow.__MOCK_KEYBOARD_BRIDGE__;
     delete pageWindow.__MOCK_KEYBOARD_BRIDGE_TEARDOWN__;
@@ -108,8 +114,10 @@ function createBridgeRuntime(pageWindow: BridgeWindow) {
   return { install };
 }
 
-// The page bridge only patches what app code can read directly. The controller
-// still owns the overlay and extension messaging in the isolated world.
+// --- Viewport shim ---
+// Patches window.innerHeight and visualViewport properties to make the page
+// think the keyboard is taking up physical screen space.
+
 function installViewportShim(): ViewportShimState {
   const state: ViewportShimState = {
     detail: null,
@@ -219,6 +227,10 @@ function dispatchViewportSignals(): void {
   window.visualViewport?.dispatchEvent(new Event('scroll'));
 }
 
+// --- Debug snapshot ---
+// Published as JSON in a hidden <script> element so the content script
+// (running in the isolated world) can read it via the DOM.
+
 function createDebugSnapshot(
   state: ViewportShimState,
   detail: MockKeyboardChangeDetail,
@@ -252,10 +264,10 @@ function createDebugSnapshot(
 }
 
 function publishDebugSnapshot(snapshot: PageDebugSnapshot): void {
-  let debugNode = document.getElementById(PAGE_DEBUG_NODE_ID) as HTMLScriptElement | null;
+  let debugNode = document.getElementById(BRIDGE_DEBUG_NODE_ID) as HTMLScriptElement | null;
   if (!debugNode) {
     debugNode = document.createElement('script');
-    debugNode.id = PAGE_DEBUG_NODE_ID;
+    debugNode.id = BRIDGE_DEBUG_NODE_ID;
     debugNode.type = 'application/json';
     document.documentElement.append(debugNode);
   }

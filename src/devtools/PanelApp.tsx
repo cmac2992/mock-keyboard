@@ -13,7 +13,7 @@ import { usePanelRuntime } from './usePanelRuntime';
 const VISIBILITY_OPTIONS: VisibilityMode[] = ['auto', 'force-open', 'force-closed'];
 
 export function PanelApp() {
-  const tabId = useMemo(() => resolveTabId(), []);
+  const tabId = useMemo(() => resolveTabIdSafely(), []);
   const [advancedDebugOpen, setAdvancedDebugOpen] = useState(false);
   const {
     tabState,
@@ -27,11 +27,13 @@ export function PanelApp() {
   } = usePanelRuntime(tabId, advancedDebugOpen);
 
   const keyboard = tabState.keyboard;
-  const controlsDisabled = keyboard.unsupportedReason !== null;
+  const controlsDisabled = keyboard.unsupportedReason !== null || tabId === 0;
   const statusText = `${keyboard.enabled ? 'Enabled' : 'Disabled'} / ${
     keyboard.visible ? 'Visible' : 'Hidden'
   }`;
-  const noticeText = panelInvalidated
+  const noticeText = tabId === 0
+    ? 'Extension reloaded. Close and reopen the Mock Keyboard panel.'
+    : panelInvalidated
     ? 'Extension reloaded. Close and reopen the Mock Keyboard panel.'
     : keyboard.unsupportedReason;
 
@@ -221,15 +223,19 @@ function InfoRow(props: { children: ReactNode; label: string }) {
   );
 }
 
-function resolveTabId(): number {
-  const queryTabId = Number(new URLSearchParams(window.location.search).get('tabId'));
-  if (Number.isInteger(queryTabId) && queryTabId > 0) {
-    return queryTabId;
+function resolveTabIdSafely(): number {
+  try {
+    const queryTabId = Number(new URLSearchParams(window.location.search).get('tabId'));
+    if (Number.isInteger(queryTabId) && queryTabId > 0) {
+      return queryTabId;
+    }
+
+    if (chrome.devtools?.inspectedWindow?.tabId) {
+      return chrome.devtools.inspectedWindow.tabId;
+    }
+  } catch {
+    return 0;
   }
 
-  if (chrome.devtools?.inspectedWindow?.tabId) {
-    return chrome.devtools.inspectedWindow.tabId;
-  }
-
-  throw new Error('Unable to determine the inspected tab id.');
+  return 0;
 }
