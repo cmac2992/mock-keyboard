@@ -1,10 +1,11 @@
 import type { MockKeyboardChangeDetail, PageDebugSnapshot } from '../shared/types';
-
-const CONTENT_BRIDGE_EVENT_NAME = '__mockkeyboardbridge';
-const CONTENT_BRIDGE_CONTROL_EVENT_NAME = '__mockkeyboardbridgecontrol';
-const CONTENT_PUBLIC_EVENT_NAME = 'mockkeyboardchange';
-const PAGE_BRIDGE_READY_ATTRIBUTE = 'data-mock-keyboard-bridge';
-const PAGE_DEBUG_NODE_ID = '__mock-keyboard-page-debug';
+import {
+  BRIDGE_CONTROL_EVENT,
+  BRIDGE_DEBUG_NODE_ID,
+  BRIDGE_KEYBOARD_EVENT,
+  BRIDGE_READY_ATTRIBUTE,
+  KEYBOARD_CHANGE_EVENT
+} from '../shared/constants';
 
 export interface BridgeWindow extends Window {
   __mockKeyboardBridgeInjected__?: boolean;
@@ -17,8 +18,9 @@ export interface BridgeDebugState {
   lastChange: MockKeyboardChangeDetail | null;
 }
 
-// This wrapper hides the page-bridge lifecycle so the content controller can stay
-// focused on keyboard state rather than script-tag bookkeeping.
+// Manages the lifecycle of the page bridge script (page-bridge.js).
+// The bridge runs in the page's main JS world so it can patch window.innerHeight
+// and fire the public `mockkeyboardchange` event that app code listens to.
 export class PageBridgeClient {
   private bridgeReady = false;
   private pendingDetail: MockKeyboardChangeDetail | null = null;
@@ -30,7 +32,7 @@ export class PageBridgeClient {
   ) {}
 
   ensureInjected(): void {
-    if (document.documentElement.getAttribute(PAGE_BRIDGE_READY_ATTRIBUTE) === 'ready') {
+    if (document.documentElement.getAttribute(BRIDGE_READY_ATTRIBUTE) === 'ready') {
       this.bridgeReady = true;
       this.flushPendingDetail();
       return;
@@ -54,10 +56,11 @@ export class PageBridgeClient {
       script.remove();
     });
     script.addEventListener('error', () => {
+      // If the bridge fails to load, dispatch the public event directly as a fallback.
       const detail = this.pendingDetail;
       this.pendingDetail = null;
       if (detail) {
-        window.dispatchEvent(new CustomEvent(CONTENT_PUBLIC_EVENT_NAME, { detail }));
+        window.dispatchEvent(new CustomEvent(KEYBOARD_CHANGE_EVENT, { detail }));
       }
       script.remove();
     });
@@ -69,10 +72,11 @@ export class PageBridgeClient {
     this.lastDetail = detail;
 
     if (this.bridgeReady) {
-      document.dispatchEvent(new CustomEvent(CONTENT_BRIDGE_EVENT_NAME, { detail }));
+      document.dispatchEvent(new CustomEvent(BRIDGE_KEYBOARD_EVENT, { detail }));
       return;
     }
 
+    // Bridge is still loading — hold the detail and flush it once the script is ready.
     this.pendingDetail = detail;
   }
 
@@ -80,10 +84,10 @@ export class PageBridgeClient {
     this.bridgeReady = false;
     this.pendingDetail = null;
     document.dispatchEvent(
-      new CustomEvent(CONTENT_BRIDGE_CONTROL_EVENT_NAME, { detail: { type: 'teardown' } })
+      new CustomEvent(BRIDGE_CONTROL_EVENT, { detail: { type: 'teardown' } })
     );
-    document.getElementById(PAGE_DEBUG_NODE_ID)?.remove();
-    document.documentElement.removeAttribute(PAGE_BRIDGE_READY_ATTRIBUTE);
+    document.getElementById(BRIDGE_DEBUG_NODE_ID)?.remove();
+    document.documentElement.removeAttribute(BRIDGE_READY_ATTRIBUTE);
     this.pageWindow.__mockKeyboardBridgeInjected__ = false;
   }
 
@@ -91,7 +95,7 @@ export class PageBridgeClient {
     return {
       bridgeInjected:
         Boolean(this.pageWindow.__mockKeyboardBridgeInjected__) ||
-        document.documentElement.getAttribute(PAGE_BRIDGE_READY_ATTRIBUTE) === 'ready',
+        document.documentElement.getAttribute(BRIDGE_READY_ATTRIBUTE) === 'ready',
       bridgeReady: this.bridgeReady,
       pendingBridgeEvent: this.pendingDetail !== null,
       lastChange: this.lastDetail
@@ -99,7 +103,7 @@ export class PageBridgeClient {
   }
 
   readPageDebugSnapshot(): PageDebugSnapshot | null {
-    const debugNode = document.getElementById(PAGE_DEBUG_NODE_ID);
+    const debugNode = document.getElementById(BRIDGE_DEBUG_NODE_ID);
     if (!debugNode?.textContent) {
       return null;
     }
@@ -116,7 +120,7 @@ export class PageBridgeClient {
       return;
     }
 
-    document.dispatchEvent(new CustomEvent(CONTENT_BRIDGE_EVENT_NAME, { detail: this.pendingDetail }));
+    document.dispatchEvent(new CustomEvent(BRIDGE_KEYBOARD_EVENT, { detail: this.pendingDetail }));
     this.pendingDetail = null;
   }
 }

@@ -128,3 +128,16 @@ export function setCssVar(
 
   style.setProperty(name, value);
 }
+
+// Shared by both the content controller and the panel hook.
+export function isExtensionContextAlive(): boolean {
+  try {
+    return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
+  } catch {
+    return false;
+  }
+}
+
+export function isContextInvalidationError(error: unknown): boolean {
+  return error instanceof Error && /Extension context invalidated/i.test(error.message);
+}
